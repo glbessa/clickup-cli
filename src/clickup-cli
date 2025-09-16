@@ -1,0 +1,363 @@
+#!/bin/sh
+
+CLICKUP_CLI_FOLDER="$HOME/.clickup-cli"
+CONFIG_FILE="${CONFIG_FILE:-$CLICKUP_CLI_FOLDER/config}"
+if [ -f "$CONFIG_FILE" ]; then
+    . "$CONFIG_FILE"
+fi
+BASE_URL="${BASE_URL:-https://api.clickup.com/api/v3}"
+API_TOKEN="${API_TOKEN}"
+WORKSPACE_ID="${DEFAULT_WORKSPACE_ID}"
+CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
+VERBOSE=0
+LOG_FILE="${LOG_FILE:-$CLICKUP_CLI_FOLDER/log}"
+
+apiCall() {
+    local endpoint="$1"
+    local method="$2"
+    local data="$3"
+    
+    local url="$BASE_URL/$endpoint"
+    
+    debug "Making API call: $method $url"
+    debug "Data: $data"
+
+    local response
+    response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
+        -H "Authorization: $API_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$data" 2>/dev/null)
+
+    if [ $? -ne 0 ]; then
+        log "Error: Failed to connect to ClickUp API"
+        return 1
+    fi
+
+    # Extract HTTP status code (last line)
+    local http_code=$(echo "$response" | tail -n1)
+    local response_body=$(echo "$response" | sed '$d')
+    
+    debug "HTTP Status: $http_code"
+    debug "Response: $response_body"
+
+    # Check for successful HTTP status codes
+    case "$http_code" in
+        2*)
+            debug "API call successful"
+            echo "$response_body"
+            return 0
+            ;;
+        401)
+            log "Error: Authentication failed. Check your API_TOKEN"
+            return 1
+            ;;
+        403)
+            log "Error: Permission denied. Check workspace and channel permissions"
+            return 1
+            ;;
+        404)
+            log "Error: Workspace or channel not found"
+            return 1
+            ;;
+        429)
+            log "Error: Rate limit exceeded. Please try again later"
+            return 1
+            ;;
+        *)
+            log "Error: API call failed with HTTP status $http_code"
+            if [ -n "$response_body" ]; then
+                log "Response: $response_body"
+            fi
+            return 1
+            ;;
+    esac
+}
+
+log() {
+    local message="$1"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "$message" >&2
+    echo "$timestamp - $message" >> "$LOG_FILE"
+}
+
+debug() {
+    if [ "$VERBOSE" = "1" ]; then
+        local message="$1"
+        local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        echo "$timestamp [DEBUG] - $message" >> "$LOG_FILE"
+    fi
+}
+
+# Parse command-line arguments with support for flags and subcommands
+parseArguments() {
+    if [ "$#" -lt 1 ]; then
+        showUsage
+        exit 1
+    fi
+
+    # Parse global flags first
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                showUsage
+                exit 0
+                ;;
+            -w|--workspace)
+                if [ -z "$2" ]; then
+                    log "Error: --workspace requires a value"
+                    exit 1
+                fi
+                WORKSPACE_ID="$2"
+                shift 2
+                ;;
+            -c|--channel)
+                if [ -z "$2" ]; then
+                    log "Error: --channel requires a value"
+                    exit 1
+                fi
+                CHANNEL_ID="$2"
+                shift 2
+                ;;
+            -v|--verbose)
+                VERBOSE=1
+                shift
+                ;;
+            -*)
+                log "Error: Unknown option $1"
+                showUsage
+                exit 1
+                ;;
+            *)
+                # First non-flag argument is the command
+                break
+                ;;
+        esac
+    done
+
+    if [ $# -lt 1 ]; then
+        log "Error: No command specified"
+        showUsage
+        exit 1
+    fi
+
+    # Dispatch to subcommand handlers
+    local command="$1"
+    shift
+    
+    case "$command" in
+        send)
+            handleSendCommand "$@"
+            ;;
+        list)
+            handleListCommand "$@"
+            ;;
+        help)
+            showUsage
+            exit 0
+            ;;
+        *)
+            log "Error: Unknown command '$command'"
+            showUsage
+            exit 1
+            ;;
+    esac
+}
+
+# Handle 'send' subcommand with flexible syntax
+handleSendCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        message|msg)
+            handleSendMessage "$@"
+            ;;
+        *)
+            log "Error: Unknown send subcommand '$subcommand'"
+            echo "Usage: $0 send message <text>"
+            exit 1
+            ;;
+    esac
+}
+
+# Handle sending messages with flexible argument parsing
+handleSendMessage() {
+    local message=""
+
+    # Parse message arguments - support quoted strings and concatenation
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            to)
+                shift
+                if [ -n "$1" ]; then
+                    CHANNEL_ID="$1"
+                    shift
+                fi
+                ;;
+            in)
+                shift
+                if [ -n "$1" ]; then
+                    WORKSPACE_ID="$1"
+                    shift
+                fi
+                ;;
+            *)
+                # Accumulate message text
+                if [ -z "$message" ]; then
+                    message="$1"
+                else
+                    message="$message $1"
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    if [ -z "$message" ]; then
+        log "Error: No message provided"
+        echo "Usage: $0 send message <text> [to <channel>] [in <workspace>]"
+        exit 1
+    fi
+    
+    if [ -z "$WORKSPACE_ID" ] || [ -z "$CHANNEL_ID" ]; then
+        log "Error: Workspace ID and Channel ID are required"
+        log "Use --workspace and --channel flags or environment variables"
+        exit 1
+    fi
+    
+    sendMessageToChannel "$message"
+}
+
+sendMessageToChannel() {
+    local message="$1"
+    
+    # Validate inputs
+    if [ -z "$message" ]; then
+        log "Error: Message cannot be empty"
+        return 1
+    fi
+    
+    if [ -z "$WORKSPACE_ID" ]; then
+        log "Error: Workspace ID is required"
+        return 1
+    fi
+    
+    if [ -z "$CHANNEL_ID" ]; then
+        log "Error: Channel ID is required"
+        return 1
+    fi
+    
+    if [ -z "$API_TOKEN" ]; then
+        log "Error: API_TOKEN environment variable is required"
+        return 1
+    fi
+    
+    debug "Sending message to workspace:$WORKSPACE_ID channel:$CHANNEL_ID"
+    debug "Message: $message"
+    
+    local endpoint="workspaces/$WORKSPACE_ID/chat/channels/$CHANNEL_ID/messages"
+    local data
+    
+    if isJQAvailable; then
+        data=$(jq -n --arg text "$message" '{type: "message", content_format: "text/plain", content: $text}')
+    else
+        local escapedMessage=$(escapeJson "$message")
+        data="{\"type\": \"message\", \"content_format\": \"text/plain\", \"content\": \"$escapedMessage\"}"
+    fi
+    
+    local response
+    response=$(apiCall "$endpoint" "POST" "$data")
+    local result=$?
+    
+    if [ $result -eq 0 ]; then
+        log "Message sent successfully"
+        if [ "$VERBOSE" = "1" ] && [ -n "$response" ]; then
+            debug "Response: $response"
+        fi
+    else
+        log "Failed to send message"
+    fi
+    
+    return $result
+}
+
+isJQAvailable() {
+    if command -v jq >/dev/null 2>&1; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+escapeJson() {
+    local str="$1"
+    str=$(echo "$str" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed 's/\n/\\n/g' | sed 's/\r/\\r/g')
+    echo "$str"
+}
+
+# Placeholder for future list command
+handleListCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        workspaces)
+            log "Listing workspaces... (not implemented yet)"
+            ;;
+        channels)
+            log "Listing channels... (not implemented yet)"
+            ;;
+        *)
+            log "Error: Unknown list subcommand '$subcommand'"
+            echo "Usage: $0 list [workspaces|channels]"
+            exit 1
+            ;;
+    esac
+}
+
+showUsage() {
+    echo "ClickUp CLI - Command Line Interface for ClickUp API"
+    echo
+    echo "USAGE:"
+    echo "  $0 [OPTIONS] <COMMAND> [ARGS...]"
+    echo
+    echo "GLOBAL OPTIONS:"
+    echo "  -h, --help              Show this help message"
+    echo "  -w, --workspace <ID>    Workspace ID (overrides DEFAULT_WORKSPACE_ID)"
+    echo "  -c, --channel <ID>      Channel ID (overrides DEFAULT_CHANNEL_ID)"
+    echo "  -v, --verbose           Enable verbose output"
+    echo
+    echo "COMMANDS:"
+    echo "  send message <text>     Send a message to a channel"
+    echo "    [to <channel>]          Specify channel ID inline"
+    echo "    [in <workspace>]        Specify workspace ID inline"
+    echo
+    echo "  list workspaces         List available workspaces (not implemented)"
+    echo "  list channels           List channels in workspace (not implemented)"
+    echo
+    echo "  help                    Show this help message"
+    echo
+    echo "EXAMPLES:"
+    echo "  # Send message using environment variables"
+    echo "  $0 send message \"Hello, world!\""
+    echo
+    echo "  # Send message with explicit workspace and channel"
+    echo "  $0 --workspace 123 --channel 456 send message \"Hello!\""
+    echo
+    echo "  # Send message with inline parameters"
+    echo "  $0 send message \"Hello!\" to 456 in 123"
+    echo
+    echo "  # Mixed usage"
+    echo "  $0 --workspace 123 send message \"Hello!\" to 456"
+    echo
+    echo "ENVIRONMENT VARIABLES:"
+    echo "  BASE_URL                Base URL for ClickUp API"
+    echo "                          (default: https://api.clickup.com/api/v3)"
+    echo "  API_TOKEN               Your ClickUp API token (required)"
+    echo "  DEFAULT_WORKSPACE_ID    Default workspace ID"
+    echo "  DEFAULT_CHANNEL_ID     Default channel ID"
+    echo
+    echo "For more information, visit: https://clickup.com/api"
+}
+
+parseArguments "$@"
