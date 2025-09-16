@@ -2,15 +2,49 @@
 
 CLICKUP_CLI_FOLDER="$HOME/.clickup-cli"
 CONFIG_FILE="${CONFIG_FILE:-$CLICKUP_CLI_FOLDER/config}"
-if [ -f "$CONFIG_FILE" ]; then
-    . "$CONFIG_FILE"
-fi
+LOG_FILE="${LOG_FILE:-$CLICKUP_CLI_FOLDER/log}"
+
+createClickupCliFolderIfNeeded
+loadConfig
+
 BASE_URL="${BASE_URL:-https://api.clickup.com/api/v3}"
 API_TOKEN="${API_TOKEN}"
 WORKSPACE_ID="${DEFAULT_WORKSPACE_ID}"
 CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
 VERBOSE=0
-LOG_FILE="${LOG_FILE:-$CLICKUP_CLI_FOLDER/log}"
+
+
+createClickupCliFolderIfNeeded() {
+    if [ ! -d "$CLICKUP_CLI_FOLDER" ]; then
+        mkdir -p "$CLICKUP_CLI_FOLDER"
+        echo "Created directory $CLICKUP_CLI_FOLDER"
+    fi
+
+    if [ ! -f "$LOG_FILE" ]; then
+        touch "$LOG_FILE" 2>/dev/null
+        if [ $? -ne 0 ]; then
+            echo "Warning: Could not create log file at $LOG_FILE. Check permissions." >&2
+        fi
+    fi
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        cat <<EOF > "$CONFIG_FILE"
+#!/bin/sh
+export API_TOKEN="your_clickup_api_token_here"
+export DEFAULT_WORKSPACE_ID=""
+export DEFAULT_CHANNEL_ID=""
+EOF
+        chmod 600 "$CONFIG_FILE"
+        echo "Created config file at $CONFIG_FILE"
+        echo "Please edit this file to add your ClickUp API token and default workspace/project."
+    fi
+}
+
+loadConfig() {
+    if [ -f "$CONFIG_FILE" ]; then
+        . "$CONFIG_FILE"
+    fi
+}
 
 apiCall() {
     local endpoint="$1"
