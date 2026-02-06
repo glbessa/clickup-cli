@@ -99,6 +99,15 @@ parseArguments() {
         create)
             handleCreateCommand "$@"
             ;;
+        update)
+            handleUpdateCommand "$@"
+            ;;
+        delete)
+            handleDeleteCommand "$@"
+            ;;
+        show)
+            handleShowCommand "$@"
+            ;;
         configure)
             handleConfigureCommand "$@"
             ;;
@@ -255,6 +264,9 @@ handleListCommand() {
         lists)
             handleListLists "$@"
             ;;
+        tasks)
+            handleListTasks "$@"
+            ;;
         channels)
             handleListChannels
             ;;
@@ -358,6 +370,207 @@ handleListLists() {
         echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
     else
         echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+handleListTasks() {
+    local list_id=""
+    
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --list|-l) list_id="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    if [ -z "$list_id" ]; then
+        log "Error: --list <id> is required to list tasks"
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "list/$list_id/task" "GET" "")
+    
+    if [ $? -ne 0 ]; then return 1; fi
+
+    echo "Tasks in List $list_id:"
+    printf "%-15s %-10s %-10s %s\n" "ID" "STATUS" "PRIORITY" "NAME"
+    printf "%-15s %-10s %-10s %s\n" "--" "------" "--------" "----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.tasks[] | "\(.id)\t\(.status.status)\t\(.priority.priority // "none")\t\(.name)"' | while IFS=$'\t' read -r id status prio name; do
+            printf "%-15s %-10s %-10s %s\n" "$id" "$status" "$prio" "$name"
+        done
+    else
+        # Very basic fallback
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+# Handle 'show' subcommand
+handleShowCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        task)
+            handleShowTask "$@"
+            ;;
+        *)
+            log "Error: Unknown show subcommand '$subcommand'"
+            echo "Usage: $0 show task <id>"
+            exit 1
+            ;;
+    esac
+}
+
+handleShowTask() {
+    local task_id="$1"
+    if [ -z "$task_id" ]; then
+        log "Error: Task ID is required"
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "task/$task_id" "GET" "")
+    if [ $? -ne 0 ]; then return 1; fi
+
+    if isJQAvailable; then
+        echo "$response" | jq -r '
+            "ID: \(.id)\n" +
+            "Name: \(.name)\n" +
+            "Status: \(.status.status)\n" +
+            "Priority: \(.priority.priority // "none")\n" +
+            "URL: \(.url)\n" +
+            "Description:\n\(.description // "No description")"
+        '
+    else
+        echo "$response"
+    fi
+}
+
+# Handle 'update' subcommand
+handleUpdateCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        task)
+            handleUpdateTask "$@"
+            ;;
+        *)
+            log "Error: Unknown update subcommand '$subcommand'"
+            echo "Usage: $0 update task <id> [options]"
+            exit 1
+            ;;
+    esac
+}
+
+handleUpdateTask() {
+    local task_id="$1"
+    shift
+    
+    if [ -z "$task_id" ]; then
+        log "Error: Task ID is required"
+        return 1
+    fi
+
+    local name=""
+    local description=""
+    local priority=""
+    local status=""
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --name|-n) name="$2"; shift 2 ;;
+            --description|-d) description="$2"; shift 2 ;;
+            --priority|-p) priority="$2"; shift 2 ;;
+            --status|-s) status="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    local data="{"
+    local first=1
+    
+    if [ -n "$name" ]; then
+        data="$data \"name\": \"$(escapeJson "$name")\""
+        first=0
+    fi
+    if [ -n "$description" ]; then
+        [ $first -eq 0 ] && data="$data,"
+        data="$data \"description\": \"$(escapeJson "$description")\""
+        first=0
+    fi
+    if [ -n "$priority" ]; then
+        [ $first -eq 0 ] && data="$data,"
+        data="$data \"priority\": $priority"
+        first=0
+    fi
+    if [ -n "$status" ]; then
+        [ $first -eq 0 ] && data="$data,"
+        data="$data \"status\": \"$status\""
+        first=0
+    fi
+    data="$data }"
+
+    if [ $first -eq 1 ]; then
+        log "Error: No fields to update provided"
+        return 1
+    fi
+
+    apiCall "task/$task_id" "PUT" "$data" >/dev/null
+    if [ $? -eq 0 ]; then
+        log "Task $task_id updated successfully"
+    else
+        log "Failed to update task $task_id"
+    fi
+}
+
+# Handle 'delete' subcommand
+handleDeleteCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        task)
+            handleDeleteTask "$@"
+            ;;
+        *)
+            log "Error: Unknown delete subcommand '$subcommand'"
+            echo "Usage: $0 delete task <id>"
+            exit 1
+            ;;
+    esac
+}
+
+handleDeleteTask() {
+    local task_id="$1"
+    local force=0
+    
+    if [ "$2" = "-y" ] || [ "$2" = "--yes" ]; then
+        force=1
+    fi
+
+    if [ -z "$task_id" ]; then
+        log "Error: Task ID is required"
+        return 1
+    fi
+
+    if [ $force -eq 0 ]; then
+        printf "Are you sure you want to delete task $task_id? [y/N] "
+        read confirm
+        if [[ ! "$confirm" =~ ^[yY] ]]; then
+            echo "Aborted."
+            return 0
+        fi
+    fi
+
+    apiCall "task/$task_id" "DELETE" "" >/dev/null
+    if [ $? -eq 0 ]; then
+        log "Task $task_id deleted successfully"
+    else
+        log "Failed to delete task $task_id"
     fi
 }
 
@@ -526,13 +739,25 @@ showUsage() {
     echo "  list folders --space <id> List folders in space"
     echo "  list lists --space <id>  List lists in space"
     echo "  list lists --folder <id> List lists in folder"
+    echo "  list tasks --list <id>  List tasks in a list"
     echo "  list channels           List channels in workspace"
+    echo
+    echo "  show task <id>          Show task details"
     echo
     echo "  create task <name> --list <id> [options]"
     echo "    OPTIONS:"
     echo "      -d, --description <text>  Task description"
     echo "      -p, --priority <1-4>      Priority (1: Urgent, 2: High, 3: Normal, 4: Low)"
     echo "      -s, --status <name>       Initial status (e.g., \"to do\")"
+    echo
+    echo "  update task <id> [options]"
+    echo "    OPTIONS:"
+    echo "      -n, --name <text>         New task name"
+    echo "      -d, --description <text>  New description"
+    echo "      -p, --priority <1-4>      New priority"
+    echo "      -s, --status <name>       New status"
+    echo
+    echo "  delete task <id> [-y]     Delete a task"
     echo
     echo "  configure               Interactive configuration"
     echo

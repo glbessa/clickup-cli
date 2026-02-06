@@ -32,13 +32,15 @@ As a software engineering expert analysis of the `clickup-cli` project, the foll
 - [x] Implement `handleListLists`: GET `/space/{space_id}/list` or `/folder/{folder_id}/list`
 - [x] Output formatting: Use `printf` for tabular output or simple lists.
 
-### 2.4. Implement Task Creation [DONE]
+### 2.4. Implement Task Management [DONE]
 **Priority:** High
-**Description:** Enable users to create tasks from the CLI.
+**Description:** Enable users to manage tasks from the CLI.
 **Tasks:**
 - [x] Implement `create task` command.
-- [x] Support name, description, priority, and status.
-- [x] Support targeting a specific list by ID.
+- [x] Implement `list tasks` command.
+- [x] Implement `show task` command.
+- [x] Implement `update task` command.
+- [x] Implement `delete task` command.
 
 ### 2.2. Interactive Configuration [DONE]
 **Priority:** Medium
