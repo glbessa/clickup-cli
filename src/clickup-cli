@@ -757,6 +757,7 @@ handleListChannels() {
     fi
 
     local response
+    # Chat channels are v3 specific
     response=$(apiCall "workspaces/$WORKSPACE_ID/chat/channels" "GET" "")
     
     if [ $? -ne 0 ]; then
@@ -764,14 +765,21 @@ handleListChannels() {
     fi
 
     echo "Channels (Chat) in Workspace $WORKSPACE_ID:"
-    echo "ID\t\tName"
-    echo "--\t\t----"
     
     if isJQAvailable; then
-        echo "$response" | jq -r '.channels[] | "\(.id)\t\(.name)"'
+        local channel_count=$(echo "$response" | jq '.channels | length // 0')
+        
+        if [ "$channel_count" -eq 0 ]; then
+            echo "No chat channels found in this workspace."
+            return 0
+        fi
+
+        echo -e "ID\t\tName"
+        echo -e "--\t\t----"
+        echo "$response" | jq -r '.channels[]? | "\(.id)\t\(.name)"'
     else
          # Basic fallback
-        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+        echo "$response"
     fi
 }
 
