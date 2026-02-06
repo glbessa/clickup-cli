@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Resolve directory of the script to find libs
 SCRIPT_SRC_DIR="$(cd "$(dirname "$0")" && pwd)"

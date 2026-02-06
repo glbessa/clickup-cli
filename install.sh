@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # ClickUp CLI Installation Script
 # Supports root and non-root installation
@@ -72,7 +72,7 @@ fi
 
 if [ ! -f "$CONFIG_FILE" ]; then
     cat <<EOF > "$CONFIG_FILE"
-#!/bin/sh
+#!/bin/bash
 export API_TOKEN="your_clickup_api_token_here"
 export DEFAULT_WORKSPACE_ID=""
 export DEFAULT_CHANNEL_ID=""

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 CLICKUP_CLI_FOLDER="$HOME/.clickup-cli"
 CONFIG_FILE="${CONFIG_FILE:-$CLICKUP_CLI_FOLDER/config}"
@@ -19,7 +19,7 @@ createClickupCliFolderIfNeeded() {
 
     if [ ! -f "$CONFIG_FILE" ]; then
         cat <<EOF > "$CONFIG_FILE"
-#!/bin/sh
+#!/bin/bash
 export API_TOKEN="your_clickup_api_token_here"
 export DEFAULT_WORKSPACE_ID=""
 export DEFAULT_CHANNEL_ID=""
@@ -42,7 +42,7 @@ saveConfig() {
     local channel_id="$3"
 
     cat <<EOF > "$CONFIG_FILE"
-#!/bin/sh
+#!/bin/bash
 export API_TOKEN="$api_token"
 export DEFAULT_WORKSPACE_ID="$workspace_id"
 export DEFAULT_CHANNEL_ID="$channel_id"

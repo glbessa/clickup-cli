@@ -4,31 +4,31 @@ As a software engineering expert analysis of the `clickup-cli` project, the foll
 
 ## 1. Architecture & Refactoring
 
-### 1.1. Modularization
+### 1.1. Modularization [DONE]
 **Priority:** High
 **Description:** The current `src/clickup-cli` is a monolithic script. We should leverage the empty `src/lib/` directory to split logic into reusable modules.
 **Tasks:**
-- Extract logging logic (`log`, `debug`) to `src/lib/logger.sh`.
-- Extract API handling (`apiCall`, `escapeJson`, `isJQAvailable`) to `src/lib/api.sh`.
-- Extract configuration loading (`loadConfig`, `createClickupCliFolderIfNeeded`) to `src/lib/config.sh`.
-- Update the main entry point to source these files.
+- [x] Extract logging logic (`log`, `debug`) to `src/lib/logger.sh`.
+- [x] Extract API handling (`apiCall`, `escapeJson`, `isJQAvailable`) to `src/lib/api.sh`.
+- [x] Extract configuration loading (`loadConfig`, `createClickupCliFolderIfNeeded`) to `src/lib/config.sh`.
+- [x] Update the main entry point to source these files.
 
-### 1.2. Strict POSIX Compliance or Bash Migration
+### 1.2. Strict POSIX Compliance or Bash Migration [DONE]
 **Priority:** Medium
 **Description:** The script uses `#!/bin/sh` but employs `local`, which is not strictly POSIX (though widely supported).
 **Tasks:**
-- Decide on strict POSIX (remove `local` or use functional workarounds) OR explicitly target Bash (`#!/bin/bash`) for better feature support (arrays, stronger string manipulation).
-- *Recommendation:* Switch to Bash for robust array handling, which will be useful for JSON parsing and complex arguments.
+- [x] Decide on strict POSIX (remove `local` or use functional workarounds) OR explicitly target Bash (`#!/bin/bash`) for better feature support (arrays, stronger string manipulation).
+- [x] *Recommendation:* Switch to Bash for robust array handling, which will be useful for JSON parsing and complex arguments.
 
 ## 2. Feature Implementation
 
-### 2.1. Implement `list` Commands
+### 2.1. Implement `list` Commands [DONE]
 **Priority:** High
 **Description:** The `list workspaces` and `list channels` commands are currently placeholders.
 **Tasks:**
-- Implement `handleListWorkspaces`: GET `/team` endpoint.
-- Implement `handleListChannels`: GET `/space/{space_id}/folder` or `/list/{list_id}/task` (needs hierarchy navigation logic).
-- Output formatting: Use `printf` for tabular output or simple lists.
+- [x] Implement `handleListWorkspaces`: GET `/team` endpoint.
+- [x] Implement `handleListChannels`: GET `/space/{space_id}/folder` or `/list/{list_id}/task` (needs hierarchy navigation logic).
+- [x] Output formatting: Use `printf` for tabular output or simple lists.
 
 ### 2.2. Interactive Configuration [DONE]
 **Priority:** Medium

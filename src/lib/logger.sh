@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 log() {
     local message="$1"
