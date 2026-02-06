@@ -13,10 +13,9 @@ apiCall() {
     debug "Data: $data"
 
     local response
-    response=$(curl -s -w "
-%{http_code}" -X "$method" "$url" 
-        -H "Authorization: $API_TOKEN" 
-        -H "Content-Type: application/json" 
+    response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
+        -H "Authorization: $API_TOKEN" \
+        -H "Content-Type: application/json" \
         -d "$data" 2>/dev/null)
 
     if [ $? -ne 0 ]; then
@@ -74,8 +73,6 @@ isJQAvailable() {
 
 escapeJson() {
     local str="$1"
-    str=$(echo "$str" | sed 's/\/\/g' | sed 's/"/"/g' | sed 's/
-/
-/g' | sed 's///g')
+    str=$(echo "$str" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed 's/\n/\\n/g' | sed 's/\r/\\r/g')
     echo "$str"
 }
