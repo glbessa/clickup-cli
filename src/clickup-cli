@@ -398,10 +398,10 @@ handleListShared() {
     if isJQAvailable; then
         echo "FOLDERS:"
         echo -e "ID\t\tName"
-        echo "$response" | jq -r '.folders[] | "\(.id)\t\(.name)"'
+        echo "$response" | jq -r '.folders // [] | .[]? | "\(.id)\t\(.name)"'
         echo -e "\nLISTS:"
         echo -e "ID\t\tName"
-        echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
+        echo "$response" | jq -r '.lists // [] | .[]? | "\(.id)\t\(.name)"'
     else
         echo "$response"
     fi
