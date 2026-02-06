@@ -85,9 +85,9 @@ As a software engineering expert analysis of the `clickup-cli` project, the foll
 - [x] Update `install.sh` to allow installing to `~/.local/bin` (user space) if `sudo` access is not desired or available.
 - [x] Check `$PATH` to ensure the installation directory is included.
 
-### 4.2. Versioning
+### 4.2. Versioning [DONE]
 **Priority:** Low
 **Description:** No versioning strategy is visible.
 **Tasks:**
-- Add a `VERSION` file or variable in the script.
-- Add a `--version` flag to the CLI.
+- [x] Add a `VERSION` file or variable in the script.
+- [x] Add a `--version` flag to the CLI.

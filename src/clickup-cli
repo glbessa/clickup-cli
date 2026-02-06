@@ -32,6 +32,7 @@ API_TOKEN="${API_TOKEN}"
 WORKSPACE_ID="${DEFAULT_WORKSPACE_ID}"
 CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
 VERBOSE=0
+VERSION="0.1.0"
 
 # Parse command-line arguments with support for flags and subcommands
 parseArguments() {
@@ -45,6 +46,10 @@ parseArguments() {
         case "$1" in
             -h|--help)
                 showUsage
+                exit 0
+                ;;
+            --version)
+                echo "clickup-cli version $VERSION"
                 exit 0
                 ;;
             -w|--workspace)
@@ -725,6 +730,7 @@ showUsage() {
     echo
     echo "GLOBAL OPTIONS:"
     echo "  -h, --help              Show this help message"
+    echo "  --version               Show version information"
     echo "  -w, --workspace <ID>    Workspace ID (overrides DEFAULT_WORKSPACE_ID)"
     echo "  -c, --channel <ID>      Channel ID (overrides DEFAULT_CHANNEL_ID)"
     echo "  -v, --verbose           Enable verbose output"
