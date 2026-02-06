@@ -68,37 +68,34 @@ interactiveConfigure() {
     fi
 
     echo "Validating token..."
-    # We use handleListWorkspaces to validate the token
-    # But we need to make sure API_TOKEN is exported for the subshell/curl call
+    # Use /user endpoint which is standard in v3 for validation
     export API_TOKEN
     
-    # Try to list workspaces to validate token
-    local workspaces
-    workspaces=$(apiCall "team" "GET" "")
-    if [ $? -ne 0 ]; then
+    if ! apiCall "user" "GET" "" >/dev/null; then
         echo "Failed to validate token. Please check if it's correct."
         return 1
     fi
     echo "Token validated successfully!"
 
-    # List workspaces and ask for default
+    # Ask for mandatory Workspace ID
     echo ""
-    handleListWorkspaces
-    echo ""
-    printf "Enter default Workspace ID [%s]: " "$current_workspace"
-    read input_workspace
-    WORKSPACE_ID="${input_workspace:-$current_workspace}"
-    DEFAULT_WORKSPACE_ID="$WORKSPACE_ID"
+    while [ -z "$DEFAULT_WORKSPACE_ID" ]; do
+        printf "Enter Workspace ID (Required) [%s]: " "$current_workspace"
+        read input_workspace
+        DEFAULT_WORKSPACE_ID="${input_workspace:-$current_workspace}"
+        
+        if [ -z "$DEFAULT_WORKSPACE_ID" ]; then
+            echo "Error: Workspace ID is mandatory."
+        fi
+    done
+    WORKSPACE_ID="$DEFAULT_WORKSPACE_ID"
 
-    if [ -n "$WORKSPACE_ID" ]; then
-        echo ""
-        handleListChannels
-        echo ""
-        printf "Enter default Channel ID [%s]: " "$current_channel"
-        read input_channel
-        CHANNEL_ID="${input_channel:-$current_channel}"
-        DEFAULT_CHANNEL_ID="$CHANNEL_ID"
-    fi
+    echo ""
+    handleListSpaces
+    echo ""
+    printf "Enter default Channel ID (Optional) [%s]: " "$current_channel"
+    read input_channel
+    DEFAULT_CHANNEL_ID="${input_channel:-$current_channel}"
 
     saveConfig "$API_TOKEN" "$DEFAULT_WORKSPACE_ID" "$DEFAULT_CHANNEL_ID"
     echo "Configuration saved to $CONFIG_FILE"

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-BASE_URL="${BASE_URL:-https://api.clickup.com/api/v2}"
+BASE_URL="${BASE_URL:-https://api.clickup.com/api/v3}"
 
 apiCall() {
     local endpoint="$1"

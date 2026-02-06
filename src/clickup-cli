@@ -27,7 +27,7 @@ fi
 createClickupCliFolderIfNeeded
 loadConfig
 
-BASE_URL="${BASE_URL:-https://api.clickup.com/api/v2}"
+BASE_URL="${BASE_URL:-https://api.clickup.com/api/v3}"
 API_TOKEN="${API_TOKEN}"
 WORKSPACE_ID="${DEFAULT_WORKSPACE_ID}"
 CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
@@ -784,7 +784,7 @@ showUsage() {
     echo
     echo "ENVIRONMENT VARIABLES:"
     echo "  BASE_URL                Base URL for ClickUp API"
-    echo "                          (default: https://api.clickup.com/api/v2)"
+    echo "                          (default: https://api.clickup.com/api/v3)"
     echo "  API_TOKEN               Your ClickUp API token (required)"
     echo "  DEFAULT_WORKSPACE_ID    Default workspace ID"
     echo "  DEFAULT_CHANNEL_ID     Default channel ID"
