@@ -291,7 +291,7 @@ handleListSpaces() {
     fi
 
     local response
-    response=$(apiCall "team/$team_id/space" "GET" "")
+    response=$(apiCall "https://api.clickup.com/api/v2/team/$team_id/space" "GET" "")
     
     if [ $? -ne 0 ]; then return 1; fi
 
@@ -322,7 +322,7 @@ handleListFolders() {
     fi
 
     local response
-    response=$(apiCall "space/$space_id/folder" "GET" "")
+    response=$(apiCall "https://api.clickup.com/api/v2/space/$space_id/folder" "GET" "")
     
     if [ $? -ne 0 ]; then return 1; fi
 
@@ -349,13 +349,13 @@ handleListLists() {
         esac
     done
 
-    local endpoint=""
+    local url=""
     local context=""
     if [ -n "$folder_id" ]; then
-        endpoint="folder/$folder_id/list"
+        url="https://api.clickup.com/api/v2/folder/$folder_id/list"
         context="Folder $folder_id"
     elif [ -n "$space_id" ]; then
-        endpoint="space/$space_id/list"
+        url="https://api.clickup.com/api/v2/space/$space_id/list"
         context="Space $space_id"
     else
         log "Error: --space <id> or --folder <id> is required to list lists"
@@ -363,7 +363,7 @@ handleListLists() {
     fi
 
     local response
-    response=$(apiCall "$endpoint" "GET" "")
+    response=$(apiCall "$url" "GET" "")
     
     if [ $? -ne 0 ]; then return 1; fi
 
@@ -394,7 +394,7 @@ handleListTasks() {
     fi
 
     local response
-    response=$(apiCall "list/$list_id/task" "GET" "")
+    response=$(apiCall "https://api.clickup.com/api/v2/list/$list_id/task" "GET" "")
     
     if [ $? -ne 0 ]; then return 1; fi
 
@@ -437,7 +437,7 @@ handleShowTask() {
     fi
 
     local response
-    response=$(apiCall "task/$task_id" "GET" "")
+    response=$(apiCall "https://api.clickup.com/api/v2/task/$task_id" "GET" "")
     if [ $? -ne 0 ]; then return 1; fi
 
     if isJQAvailable; then
@@ -524,7 +524,7 @@ handleUpdateTask() {
         return 1
     fi
 
-    apiCall "task/$task_id" "PUT" "$data" >/dev/null
+    apiCall "https://api.clickup.com/api/v2/task/$task_id" "PUT" "$data" >/dev/null
     if [ $? -eq 0 ]; then
         log "Task $task_id updated successfully"
     else
@@ -571,7 +571,7 @@ handleDeleteTask() {
         fi
     fi
 
-    apiCall "task/$task_id" "DELETE" "" >/dev/null
+    apiCall "https://api.clickup.com/api/v2/task/$task_id" "DELETE" "" >/dev/null
     if [ $? -eq 0 ]; then
         log "Task $task_id deleted successfully"
     else
@@ -660,7 +660,7 @@ handleCreateTask() {
     fi
 
     local response
-    response=$(apiCall "list/$list_id/task" "POST" "$data")
+    response=$(apiCall "https://api.clickup.com/api/v2/list/$list_id/task" "POST" "$data")
     
     if [ $? -eq 0 ]; then
         log "Task created successfully"
