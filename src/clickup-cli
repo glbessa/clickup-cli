@@ -396,12 +396,35 @@ handleListShared() {
     echo "Shared Hierarchy in Workspace $team_id:"
     
     if isJQAvailable; then
-        echo "FOLDERS:"
-        echo -e "ID\t\tName"
-        echo "$response" | jq -r '.folders // [] | .[]? | "\(.id)\t\(.name)"'
-        echo -e "\nLISTS:"
-        echo -e "ID\t\tName"
-        echo "$response" | jq -r '.lists // [] | .[]? | "\(.id)\t\(.name)"'
+        local folder_count=$(echo "$response" | jq '.folders | length // 0')
+        local list_count=$(echo "$response" | jq '.lists | length // 0')
+        local task_count=$(echo "$response" | jq '.tasks | length // 0')
+
+        if [ "$folder_count" -eq 0 ] && [ "$list_count" -eq 0 ] && [ "$task_count" -eq 0 ]; then
+            echo "No shared folders, lists or tasks found."
+            if [ "$VERBOSE" = "1" ]; then
+                echo "Raw response: $response"
+            fi
+            return 0
+        fi
+
+        if [ "$folder_count" -gt 0 ]; then
+            echo -e "\nFOLDERS:"
+            echo -e "ID\t\tName"
+            echo "$response" | jq -r '.folders[] | "\(.id)\t\(.name)"'
+        fi
+
+        if [ "$list_count" -gt 0 ]; then
+            echo -e "\nLISTS:"
+            echo -e "ID\t\tName"
+            echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
+        fi
+
+        if [ "$task_count" -gt 0 ]; then
+            echo -e "\nTASKS:"
+            echo -e "ID\t\tName"
+            echo "$response" | jq -r '.tasks[] | "\(.id)\t\(.name)"'
+        fi
     else
         echo "$response"
     fi
