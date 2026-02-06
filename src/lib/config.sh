@@ -77,21 +77,17 @@ interactiveConfigure() {
     fi
     echo "Token validated successfully!"
 
-    # Ask for mandatory Workspace ID
+    # Ask for Workspace ID
     echo ""
-    while [ -z "$DEFAULT_WORKSPACE_ID" ]; do
-        printf "Enter Workspace ID (Required) [%s]: " "$current_workspace"
-        read input_workspace
-        DEFAULT_WORKSPACE_ID="${input_workspace:-$current_workspace}"
-        
-        if [ -z "$DEFAULT_WORKSPACE_ID" ]; then
-            echo "Error: Workspace ID is mandatory."
-        fi
-    done
+    printf "Enter default Workspace ID [%s]: " "$current_workspace"
+    read input_workspace
+    DEFAULT_WORKSPACE_ID="${input_workspace:-$current_workspace}"
     WORKSPACE_ID="$DEFAULT_WORKSPACE_ID"
 
-    echo ""
-    handleListSpaces
+    if [ -n "$WORKSPACE_ID" ]; then
+        echo ""
+        handleListSpaces
+    fi
     echo ""
     printf "Enter default Channel ID (Optional) [%s]: " "$current_channel"
     read input_channel
