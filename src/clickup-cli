@@ -269,6 +269,9 @@ handleListCommand() {
         lists)
             handleListLists "$@"
             ;;
+        shared)
+            handleListShared "$@"
+            ;;
         tasks)
             handleListTasks "$@"
             ;;
@@ -375,6 +378,32 @@ handleListLists() {
         echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
     else
         echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+handleListShared() {
+    local team_id="${WORKSPACE_ID}"
+    if [ -z "$team_id" ]; then
+        log "Error: Workspace (Team) ID is required. Use --workspace or set DEFAULT_WORKSPACE_ID."
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "https://api.clickup.com/api/v2/team/$team_id/shared" "GET" "")
+    
+    if [ $? -ne 0 ]; then return 1; fi
+
+    echo "Shared Hierarchy in Workspace $team_id:"
+    
+    if isJQAvailable; then
+        echo "FOLDERS:"
+        echo -e "ID\t\tName"
+        echo "$response" | jq -r '.folders[] | "\(.id)\t\(.name)"'
+        echo -e "\nLISTS:"
+        echo -e "ID\t\tName"
+        echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
+    else
+        echo "$response"
     fi
 }
 
@@ -746,6 +775,7 @@ showUsage() {
     echo "  list folders --space <id> List folders in space"
     echo "  list lists --space <id>  List lists in space"
     echo "  list lists --folder <id> List lists in folder"
+    echo "  list shared             List shared folders and lists"
     echo "  list tasks --list <id>  List tasks in a list"
     echo "  list channels           List channels in workspace"
     echo
