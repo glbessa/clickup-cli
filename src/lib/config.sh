@@ -68,10 +68,10 @@ interactiveConfigure() {
     fi
 
     echo "Validating token..."
-    # Use /user endpoint which is standard in v3 for validation
+    # Use /team endpoint as it's more reliable for validation across versions
     export API_TOKEN
     
-    if ! apiCall "user" "GET" "" >/dev/null; then
+    if ! apiCall "team" "GET" "" >/dev/null; then
         echo "Failed to validate token. Please check if it's correct."
         return 1
     fi
