@@ -96,6 +96,9 @@ parseArguments() {
         list)
             handleListCommand "$@"
             ;;
+        create)
+            handleCreateCommand "$@"
+            ;;
         configure)
             handleConfigureCommand "$@"
             ;;
@@ -240,18 +243,218 @@ handleListCommand() {
     shift
     
     case "$subcommand" in
-        workspaces)
+        workspaces|teams)
             handleListWorkspaces
+            ;;
+        spaces)
+            handleListSpaces "$@"
+            ;;
+        folders)
+            handleListFolders "$@"
+            ;;
+        lists)
+            handleListLists "$@"
             ;;
         channels)
             handleListChannels
             ;;
         *)
             log "Error: Unknown list subcommand '$subcommand'"
-            echo "Usage: $0 list [workspaces|channels]"
+            echo "Usage: $0 list [workspaces|spaces|folders|lists|channels]"
             exit 1
             ;;
     esac
+}
+
+handleListSpaces() {
+    local team_id="${WORKSPACE_ID}"
+    if [ -z "$team_id" ]; then
+        log "Error: Workspace (Team) ID is required. Use --workspace or set DEFAULT_WORKSPACE_ID."
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "team/$team_id/space" "GET" "")
+    
+    if [ $? -ne 0 ]; then return 1; fi
+
+    echo "Spaces in Workspace $team_id:"
+    echo -e "ID\t\tName"
+    echo -e "--\t\t----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.spaces[] | "\(.id)\t\(.name)"'
+    else
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+handleListFolders() {
+    local space_id=""
+    
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --space) space_id="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    if [ -z "$space_id" ]; then
+        log "Error: --space <id> is required to list folders"
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "space/$space_id/folder" "GET" "")
+    
+    if [ $? -ne 0 ]; then return 1; fi
+
+    echo "Folders in Space $space_id:"
+    echo -e "ID\t\tName"
+    echo -e "--\t\t----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.folders[] | "\(.id)\t\(.name)"'
+    else
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+handleListLists() {
+    local space_id=""
+    local folder_id=""
+    
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --space) space_id="$2"; shift 2 ;;
+            --folder) folder_id="$2"; shift 2 ;;
+            *) shift ;;
+        esac
+    done
+
+    local endpoint=""
+    local context=""
+    if [ -n "$folder_id" ]; then
+        endpoint="folder/$folder_id/list"
+        context="Folder $folder_id"
+    elif [ -n "$space_id" ]; then
+        endpoint="space/$space_id/list"
+        context="Space $space_id"
+    else
+        log "Error: --space <id> or --folder <id> is required to list lists"
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "$endpoint" "GET" "")
+    
+    if [ $? -ne 0 ]; then return 1; fi
+
+    echo "Lists in $context:"
+    echo -e "ID\t\tName"
+    echo -e "--\t\t----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
+    else
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+# Handle 'create' subcommand
+handleCreateCommand() {
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        task)
+            handleCreateTask "$@"
+            ;;
+        *)
+            log "Error: Unknown create subcommand '$subcommand'"
+            echo "Usage: $0 create task <name> --list <id> [options]"
+            exit 1
+            ;;
+    esac
+}
+
+handleCreateTask() {
+    local name=""
+    local list_id=""
+    local description=""
+    local priority=""
+    local status=""
+
+    # First argument is the task name
+    if [ $# -gt 0 ] && [[ ! "$1" =~ ^- ]]; then
+        name="$1"
+        shift
+    fi
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --list|-l) list_id="$2"; shift 2 ;;
+            --description|-d) description="$2"; shift 2 ;;
+            --priority|-p) priority="$2"; shift 2 ;;
+            --status|-s) status="$2"; shift 2 ;;
+            *) 
+                if [ -z "$name" ]; then
+                    name="$1"
+                else
+                    name="$name $1"
+                fi
+                shift 
+                ;;
+        esac
+    done
+
+    if [ -z "$name" ]; then
+        log "Error: Task name is required"
+        return 1
+    fi
+
+    if [ -z "$list_id" ]; then
+        log "Error: List ID is required (--list <id>)"
+        return 1
+    fi
+
+    debug "Creating task '$name' in list $list_id"
+
+    local data
+    if isJQAvailable; then
+        data=$(jq -n \
+            --arg name "$name" \
+            --arg desc "$description" \
+            --arg prio "$priority" \
+            --arg status "$status" \
+            '{name: $name, description: $desc}')
+        
+        # Add priority and status if provided
+        [ -n "$priority" ] && data=$(echo "$data" | jq --arg prio "$priority" '.priority = ($prio | tonumber)')
+        [ -n "$status" ] && data=$(echo "$data" | jq --arg status "$status" '.status = $status')
+    else
+        local escapedName=$(escapeJson "$name")
+        local escapedDesc=$(escapeJson "$description")
+        data="{\"name\": \"$escapedName\", \"description\": \"$escapedDesc\""
+        [ -n "$priority" ] && data="$data, \"priority\": $priority"
+        [ -n "$status" ] && data="$data, \"status\": \"$status\""
+        data="$data}"
+    fi
+
+    local response
+    response=$(apiCall "list/$list_id/task" "POST" "$data")
+    
+    if [ $? -eq 0 ]; then
+        log "Task created successfully"
+        if isJQAvailable; then
+            local task_id=$(echo "$response" | jq -r '.id')
+            local task_url=$(echo "$response" | jq -r '.url')
+            echo "ID: $task_id"
+            echo "URL: $task_url"
+        fi
+    else
+        log "Failed to create task"
+    fi
 }
 
 handleListWorkspaces() {
@@ -319,7 +522,17 @@ showUsage() {
     echo "    [in <workspace>]        Specify workspace ID inline"
     echo
     echo "  list workspaces         List available workspaces"
+    echo "  list spaces             List spaces in workspace"
+    echo "  list folders --space <id> List folders in space"
+    echo "  list lists --space <id>  List lists in space"
+    echo "  list lists --folder <id> List lists in folder"
     echo "  list channels           List channels in workspace"
+    echo
+    echo "  create task <name> --list <id> [options]"
+    echo "    OPTIONS:"
+    echo "      -d, --description <text>  Task description"
+    echo "      -p, --priority <1-4>      Priority (1: Urgent, 2: High, 3: Normal, 4: Low)"
+    echo "      -s, --status <name>       Initial status (e.g., \"to do\")"
     echo
     echo "  configure               Interactive configuration"
     echo

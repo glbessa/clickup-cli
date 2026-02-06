@@ -27,8 +27,18 @@ As a software engineering expert analysis of the `clickup-cli` project, the foll
 **Description:** The `list workspaces` and `list channels` commands are currently placeholders.
 **Tasks:**
 - [x] Implement `handleListWorkspaces`: GET `/team` endpoint.
-- [x] Implement `handleListChannels`: GET `/space/{space_id}/folder` or `/list/{list_id}/task` (needs hierarchy navigation logic).
+- [x] Implement `handleListSpaces`: GET `/team/{team_id}/space`
+- [x] Implement `handleListFolders`: GET `/space/{space_id}/folder`
+- [x] Implement `handleListLists`: GET `/space/{space_id}/list` or `/folder/{folder_id}/list`
 - [x] Output formatting: Use `printf` for tabular output or simple lists.
+
+### 2.4. Implement Task Creation [DONE]
+**Priority:** High
+**Description:** Enable users to create tasks from the CLI.
+**Tasks:**
+- [x] Implement `create task` command.
+- [x] Support name, description, priority, and status.
+- [x] Support targeting a specific list by ID.
 
 ### 2.2. Interactive Configuration [DONE]
 **Priority:** Medium
