@@ -1,8 +1,28 @@
 #!/bin/sh
 
-CLICKUP_CLI_FOLDER="$HOME/.clickup-cli"
-CONFIG_FILE="${CONFIG_FILE:-$CLICKUP_CLI_FOLDER/config}"
-LOG_FILE="${LOG_FILE:-$CLICKUP_CLI_FOLDER/log}"
+# Resolve directory of the script to find libs
+SCRIPT_SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+LIB_DIR="$SCRIPT_SRC_DIR/lib"
+
+# If not found in relative path (e.g. installed in a bin directory), try relative to prefix or system paths
+if [ ! -d "$LIB_DIR" ]; then
+    # Try relative to prefix: ../lib/clickup-cli
+    RELATIVE_LIB_DIR="$(cd "$SCRIPT_SRC_DIR/../lib/clickup-cli" 2>/dev/null && pwd)"
+    if [ -d "$RELATIVE_LIB_DIR" ]; then
+        LIB_DIR="$RELATIVE_LIB_DIR"
+    elif [ -d "$HOME/.local/lib/clickup-cli" ]; then
+        LIB_DIR="$HOME/.local/lib/clickup-cli"
+    elif [ -d "/usr/local/lib/clickup-cli" ]; then
+        LIB_DIR="/usr/local/lib/clickup-cli"
+    else
+        echo "Error: Could not find library directory at $LIB_DIR or standard system paths" >&2
+        exit 1
+    fi
+fi
+
+. "$LIB_DIR/config.sh"
+. "$LIB_DIR/logger.sh"
+. "$LIB_DIR/api.sh"
 
 createClickupCliFolderIfNeeded
 loadConfig
@@ -12,115 +32,6 @@ API_TOKEN="${API_TOKEN}"
 WORKSPACE_ID="${DEFAULT_WORKSPACE_ID}"
 CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
 VERBOSE=0
-
-
-createClickupCliFolderIfNeeded() {
-    if [ ! -d "$CLICKUP_CLI_FOLDER" ]; then
-        mkdir -p "$CLICKUP_CLI_FOLDER"
-        echo "Created directory $CLICKUP_CLI_FOLDER"
-    fi
-
-    if [ ! -f "$LOG_FILE" ]; then
-        touch "$LOG_FILE" 2>/dev/null
-        if [ $? -ne 0 ]; then
-            echo "Warning: Could not create log file at $LOG_FILE. Check permissions." >&2
-        fi
-    fi
-
-    if [ ! -f "$CONFIG_FILE" ]; then
-        cat <<EOF > "$CONFIG_FILE"
-#!/bin/sh
-export API_TOKEN="your_clickup_api_token_here"
-export DEFAULT_WORKSPACE_ID=""
-export DEFAULT_CHANNEL_ID=""
-EOF
-        chmod 600 "$CONFIG_FILE"
-        echo "Created config file at $CONFIG_FILE"
-        echo "Please edit this file to add your ClickUp API token and default workspace/project."
-    fi
-}
-
-loadConfig() {
-    if [ -f "$CONFIG_FILE" ]; then
-        . "$CONFIG_FILE"
-    fi
-}
-
-apiCall() {
-    local endpoint="$1"
-    local method="$2"
-    local data="$3"
-    
-    local url="$BASE_URL/$endpoint"
-    
-    debug "Making API call: $method $url"
-    debug "Data: $data"
-
-    local response
-    response=$(curl -s -w "\n%{http_code}" -X "$method" "$url" \
-        -H "Authorization: $API_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d "$data" 2>/dev/null)
-
-    if [ $? -ne 0 ]; then
-        log "Error: Failed to connect to ClickUp API"
-        return 1
-    fi
-
-    # Extract HTTP status code (last line)
-    local http_code=$(echo "$response" | tail -n1)
-    local response_body=$(echo "$response" | sed '$d')
-    
-    debug "HTTP Status: $http_code"
-    debug "Response: $response_body"
-
-    # Check for successful HTTP status codes
-    case "$http_code" in
-        2*)
-            debug "API call successful"
-            echo "$response_body"
-            return 0
-            ;;
-        401)
-            log "Error: Authentication failed. Check your API_TOKEN"
-            return 1
-            ;;
-        403)
-            log "Error: Permission denied. Check workspace and channel permissions"
-            return 1
-            ;;
-        404)
-            log "Error: Workspace or channel not found"
-            return 1
-            ;;
-        429)
-            log "Error: Rate limit exceeded. Please try again later"
-            return 1
-            ;;
-        *)
-            log "Error: API call failed with HTTP status $http_code"
-            if [ -n "$response_body" ]; then
-                log "Response: $response_body"
-            fi
-            return 1
-            ;;
-    esac
-}
-
-log() {
-    local message="$1"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "$message" >&2
-    echo "$timestamp - $message" >> "$LOG_FILE"
-}
-
-debug() {
-    if [ "$VERBOSE" = "1" ]; then
-        local message="$1"
-        local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-        echo "$timestamp [DEBUG] - $message" >> "$LOG_FILE"
-    fi
-}
 
 # Parse command-line arguments with support for flags and subcommands
 parseArguments() {
@@ -185,6 +96,9 @@ parseArguments() {
         list)
             handleListCommand "$@"
             ;;
+        configure)
+            handleConfigureCommand "$@"
+            ;;
         help)
             showUsage
             exit 0
@@ -195,6 +109,11 @@ parseArguments() {
             exit 1
             ;;
     esac
+}
+
+# Handle 'configure' command
+handleConfigureCommand() {
+    interactiveConfigure
 }
 
 # Handle 'send' subcommand with flexible syntax
@@ -315,31 +234,17 @@ sendMessageToChannel() {
     return $result
 }
 
-isJQAvailable() {
-    if command -v jq >/dev/null 2>&1; then
-        return 0
-    else
-        return 1
-    fi
-}
-
-escapeJson() {
-    local str="$1"
-    str=$(echo "$str" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed 's/\n/\\n/g' | sed 's/\r/\\r/g')
-    echo "$str"
-}
-
-# Placeholder for future list command
+# Handle 'list' subcommand
 handleListCommand() {
     local subcommand="$1"
     shift
     
     case "$subcommand" in
         workspaces)
-            log "Listing workspaces... (not implemented yet)"
+            handleListWorkspaces
             ;;
         channels)
-            log "Listing channels... (not implemented yet)"
+            handleListChannels
             ;;
         *)
             log "Error: Unknown list subcommand '$subcommand'"
@@ -347,6 +252,53 @@ handleListCommand() {
             exit 1
             ;;
     esac
+}
+
+handleListWorkspaces() {
+    local response
+    response=$(apiCall "team" "GET" "")
+    
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    echo "Workspaces:"
+    echo "ID\t\tName"
+    echo "--\t\t----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.teams[] | "\(.id)\t\(.name)"'
+    else
+        # Basic fallback for simple JSON structure
+        # Assumes standard formatting, highly brittle
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
+}
+
+handleListChannels() {
+    if [ -z "$WORKSPACE_ID" ]; then
+        log "Error: Workspace ID is required to list channels"
+        log "Use --workspace flag or set DEFAULT_WORKSPACE_ID"
+        return 1
+    fi
+
+    local response
+    response=$(apiCall "workspaces/$WORKSPACE_ID/chat/channels" "GET" "")
+    
+    if [ $? -ne 0 ]; then
+        return 1
+    fi
+
+    echo "Channels (Chat) in Workspace $WORKSPACE_ID:"
+    echo "ID\t\tName"
+    echo "--\t\t----"
+    
+    if isJQAvailable; then
+        echo "$response" | jq -r '.channels[] | "\(.id)\t\(.name)"'
+    else
+         # Basic fallback
+        echo "$response" | tr '}' '\n' | grep -o '"id":"[^"]*","name":"[^"]*"' | sed 's/"id":"\([^"]*\)","name":"\([^"]*\)"/\1\t\2/'
+    fi
 }
 
 showUsage() {
@@ -366,8 +318,10 @@ showUsage() {
     echo "    [to <channel>]          Specify channel ID inline"
     echo "    [in <workspace>]        Specify workspace ID inline"
     echo
-    echo "  list workspaces         List available workspaces (not implemented)"
-    echo "  list channels           List channels in workspace (not implemented)"
+    echo "  list workspaces         List available workspaces"
+    echo "  list channels           List channels in workspace"
+    echo
+    echo "  configure               Interactive configuration"
     echo
     echo "  help                    Show this help message"
     echo

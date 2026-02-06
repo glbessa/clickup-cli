@@ -1,54 +1,84 @@
 #!/bin/sh
 
-SRC_SCRIPT_PATH="$(dirname "$0")/src/clickup-cli"
-INSTALL_DIR="/usr/local/bin"
+# ClickUp CLI Installation Script
+# Supports root and non-root installation
+
 SCRIPT_NAME="clickup-cli"
+SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC_SCRIPT_PATH="$SRC_DIR/src/$SCRIPT_NAME"
+SRC_LIB_DIR="$SRC_DIR/src/lib"
+
+# Determine default PREFIX
+if [ "$(id -u)" -eq 0 ]; then
+    PREFIX="/usr/local"
+else
+    PREFIX="$HOME/.local"
+fi
+
+# Parse prefix from arguments if provided
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --prefix)
+            PREFIX="$2"
+            shift 2
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+INSTALL_BIN_DIR="$PREFIX/bin"
+INSTALL_LIB_DIR="$PREFIX/lib/clickup-cli"
+
+echo "Installing $SCRIPT_NAME to $PREFIX"
+
+# Create directories
+mkdir -p "$INSTALL_BIN_DIR"
+mkdir -p "$INSTALL_LIB_DIR"
+
+# Copy files
+if [ "$PREFIX" = "/usr/local" ]; then
+    echo "Using sudo for /usr/local installation"
+    sudo cp "$SRC_SCRIPT_PATH" "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+    sudo chmod +x "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+    sudo cp -r "$SRC_LIB_DIR"/* "$INSTALL_LIB_DIR/"
+else
+    cp "$SRC_SCRIPT_PATH" "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+    chmod +x "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+    cp -r "$SRC_LIB_DIR"/* "$INSTALL_LIB_DIR/"
+fi
+
+echo "$SCRIPT_NAME installed to $INSTALL_BIN_DIR/$SCRIPT_NAME"
+echo "Libraries installed to $INSTALL_LIB_DIR"
+
+# Check if INSTALL_BIN_DIR is in PATH
+if ! echo "$PATH" | grep -q "$INSTALL_BIN_DIR"; then
+    echo "Warning: $INSTALL_BIN_DIR is not in your PATH."
+    echo "You might need to add 'export PATH=\"\$PATH:$INSTALL_BIN_DIR\"' to your shell profile."
+fi
+
+# Initialize configuration
 CLICKUP_CLI_FOLDER="$HOME/.clickup-cli"
-LOG_FILE="$CLICKUP_CLI_FOLDER/log"
 CONFIG_FILE="$CLICKUP_CLI_FOLDER/config"
+LOG_FILE="$CLICKUP_CLI_FOLDER/log"
 
-moveScriptToPath() {
-    local script_path="$INSTALL_DIR/$SCRIPT_NAME"
-    
-    echo "Installing clickup-cli to $script_path"
-    sudo cp "$SRC_SCRIPT_PATH" "$script_path"
-    sudo chmod +x "$script_path"
-    echo "clickup-cli installed to $script_path"
-}
+mkdir -p "$CLICKUP_CLI_FOLDER"
 
-createConfigFile() {
-    if [ ! -d "$CLICKUP_CLI_FOLDER" ]; then
-        mkdir -p "$CLICKUP_CLI_FOLDER"
-        echo "Created directory $CLICKUP_CLI_FOLDER"
-    fi
+if [ ! -f "$LOG_FILE" ]; then
+    touch "$LOG_FILE"
+    chmod 644 "$LOG_FILE"
+fi
 
-    if [ ! -f "$CONFIG_FILE" ]; then
-        cat <<EOF > "$CONFIG_FILE"
+if [ ! -f "$CONFIG_FILE" ]; then
+    cat <<EOF > "$CONFIG_FILE"
 #!/bin/sh
 export API_TOKEN="your_clickup_api_token_here"
 export DEFAULT_WORKSPACE_ID=""
 export DEFAULT_CHANNEL_ID=""
 EOF
-        chmod 600 "$CONFIG_FILE"
-        echo "Created config file at $CONFIG_FILE"
-        echo "Please edit this file to add your ClickUp API token and default workspace/project."
-    fi
-}
+    chmod 600 "$CONFIG_FILE"
+    echo "Created default config at $CONFIG_FILE"
+fi
 
-createLogFile() {
-    if [ ! -d "$CLICKUP_CLI_FOLDER" ]; then
-        mkdir -p "$CLICKUP_CLI_FOLDER"
-        echo "Created directory $CLICKUP_CLI_FOLDER"
-    fi
-
-    if [ ! -f "$LOG_FILE" ]; then
-        touch "$LOG_FILE" 2>/dev/null
-        if [ $? -ne 0 ]; then
-            echo "Warning: Could not create log file at $LOG_FILE. Check permissions." >&2
-        fi
-    fi
-}
-
-createLogFile
-createConfigFile
-moveScriptToPath
+echo "Installation complete. Run '$SCRIPT_NAME configure' to set up your API token."

@@ -1,0 +1,11 @@
+# ShellCheck Configuration
+
+# Disable specific checks
+# SC1090: Can't follow non-constant source. Use a directive to specify location.
+disable=SC1090
+
+# Enable optional checks
+enable=all
+
+# Shell dialect
+shell=sh
