@@ -677,7 +677,8 @@ handleCreateTask() {
 
 handleListWorkspaces() {
     local response
-    response=$(apiCall "team" "GET" "")
+    # v2 is required for listing teams/workspaces as of now
+    response=$(apiCall "https://api.clickup.com/api/v2/team" "GET" "")
     
     if [ $? -ne 0 ]; then
         return 1

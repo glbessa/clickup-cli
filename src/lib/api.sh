@@ -7,7 +7,12 @@ apiCall() {
     local method="$2"
     local data="$3"
     
-    local url="$BASE_URL/$endpoint"
+    local url
+    if [[ "$endpoint" == http* ]]; then
+        url="$endpoint"
+    else
+        url="$BASE_URL/$endpoint"
+    fi
     
     debug "Making API call: $method $url"
     debug "Data: $data"
@@ -46,7 +51,7 @@ apiCall() {
             return 1
             ;;
         404)
-            log "Error: Workspace or channel not found"
+            log "Error: Endpoint, workspace or channel not found ($url)"
             return 1
             ;;
         429)

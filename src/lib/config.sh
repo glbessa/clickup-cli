@@ -68,10 +68,10 @@ interactiveConfigure() {
     fi
 
     echo "Validating token..."
-    # Use /team endpoint as it's more reliable for validation across versions
+    # Use v2 team endpoint as it's the standard way to check if a token is valid
     export API_TOKEN
     
-    if ! apiCall "team" "GET" "" >/dev/null; then
+    if ! apiCall "https://api.clickup.com/api/v2/team" "GET" "" >/dev/null; then
         echo "Failed to validate token. Please check if it's correct."
         return 1
     fi
