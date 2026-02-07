@@ -34,6 +34,10 @@ CHANNEL_ID="${DEFAULT_CHANNEL_ID}"
 VERBOSE=0
 VERSION="0.1.0"
 
+if ! isJQAvailable; then
+    echo "Warning: 'jq' is not installed. JSON parsing will rely on basic text processing, which may be fragile." >&2
+fi
+
 # Parse command-line arguments with support for flags and subcommands
 parseArguments() {
     if [ "$#" -lt 1 ]; then
@@ -171,6 +175,9 @@ handleSendMessage() {
                     shift
                 fi
                 ;;
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -c|--channel) CHANNEL_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *)
                 # Accumulate message text
                 if [ -z "$message" ]; then
@@ -287,6 +294,14 @@ handleListCommand() {
 }
 
 handleListSpaces() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
     local team_id="${WORKSPACE_ID}"
     if [ -z "$team_id" ]; then
         log "Error: Workspace (Team) ID is required. Use --workspace or set DEFAULT_WORKSPACE_ID."
@@ -315,6 +330,8 @@ handleListFolders() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --space) space_id="$2"; shift 2 ;;
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *) shift ;;
         esac
     done
@@ -348,6 +365,8 @@ handleListLists() {
         case "$1" in
             --space) space_id="$2"; shift 2 ;;
             --folder) folder_id="$2"; shift 2 ;;
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *) shift ;;
         esac
     done
@@ -382,6 +401,14 @@ handleListLists() {
 }
 
 handleListShared() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
     local team_id="${WORKSPACE_ID}"
     if [ -z "$team_id" ]; then
         log "Error: Workspace (Team) ID is required. Use --workspace or set DEFAULT_WORKSPACE_ID."
@@ -393,37 +420,38 @@ handleListShared() {
     
     if [ $? -ne 0 ]; then return 1; fi
 
+    if [ "$VERBOSE" = "1" ]; then
+        debug "Response: $response"
+    fi
+
     echo "Shared Hierarchy in Workspace $team_id:"
     
     if isJQAvailable; then
-        local folder_count=$(echo "$response" | jq '.folders | length // 0')
-        local list_count=$(echo "$response" | jq '.lists | length // 0')
-        local task_count=$(echo "$response" | jq '.tasks | length // 0')
+        local folder_count=$(echo "$response" | jq '(.shared.folders // .folders // []) | length')
+        local list_count=$(echo "$response" | jq '(.shared.lists // .lists // []) | length')
+        local task_count=$(echo "$response" | jq '(.shared.tasks // .tasks // []) | length')
 
         if [ "$folder_count" -eq 0 ] && [ "$list_count" -eq 0 ] && [ "$task_count" -eq 0 ]; then
             echo "No shared folders, lists or tasks found."
-            if [ "$VERBOSE" = "1" ]; then
-                echo "Raw response: $response"
-            fi
             return 0
         fi
 
         if [ "$folder_count" -gt 0 ]; then
             echo -e "\nFOLDERS:"
             echo -e "ID\t\tName"
-            echo "$response" | jq -r '.folders[] | "\(.id)\t\(.name)"'
+            echo "$response" | jq -r '(.shared.folders // .folders)[] | "\(.id)\t\(.name)"'
         fi
 
         if [ "$list_count" -gt 0 ]; then
             echo -e "\nLISTS:"
             echo -e "ID\t\tName"
-            echo "$response" | jq -r '.lists[] | "\(.id)\t\(.name)"'
+            echo "$response" | jq -r '(.shared.lists // .lists)[] | "\(.id)\t\(.name)"'
         fi
 
         if [ "$task_count" -gt 0 ]; then
             echo -e "\nTASKS:"
             echo -e "ID\t\tName"
-            echo "$response" | jq -r '.tasks[] | "\(.id)\t\(.name)"'
+            echo "$response" | jq -r '(.shared.tasks // .tasks)[] | "\(.id)\t\(.name)"'
         fi
     else
         echo "$response"
@@ -436,6 +464,8 @@ handleListTasks() {
     while [ $# -gt 0 ]; do
         case "$1" in
             --list|-l) list_id="$2"; shift 2 ;;
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *) shift ;;
         esac
     done
@@ -482,7 +512,15 @@ handleShowCommand() {
 }
 
 handleShowTask() {
-    local task_id="$1"
+    local task_id=""
+    
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) if [ -z "$task_id" ]; then task_id="$1"; fi; shift ;;
+        esac
+    done
+
     if [ -z "$task_id" ]; then
         log "Error: Task ID is required"
         return 1
@@ -543,6 +581,7 @@ handleUpdateTask() {
             --description|-d) description="$2"; shift 2 ;;
             --priority|-p) priority="$2"; shift 2 ;;
             --status|-s) status="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *) shift ;;
         esac
     done
@@ -602,12 +641,16 @@ handleDeleteCommand() {
 }
 
 handleDeleteTask() {
-    local task_id="$1"
+    local task_id=""
     local force=0
     
-    if [ "$2" = "-y" ] || [ "$2" = "--yes" ]; then
-        force=1
-    fi
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -y|--yes) force=1; shift ;;
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) if [ -z "$task_id" ]; then task_id="$1"; fi; shift ;;
+        esac
+    done
 
     if [ -z "$task_id" ]; then
         log "Error: Task ID is required"
@@ -667,6 +710,8 @@ handleCreateTask() {
             --description|-d) description="$2"; shift 2 ;;
             --priority|-p) priority="$2"; shift 2 ;;
             --status|-s) status="$2"; shift 2 ;;
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
             *) 
                 if [ -z "$name" ]; then
                     name="$1"
@@ -728,6 +773,13 @@ handleCreateTask() {
 }
 
 handleListWorkspaces() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
     local response
     # v2 is required for listing teams/workspaces as of now
     response=$(apiCall "https://api.clickup.com/api/v2/team" "GET" "")
@@ -750,6 +802,14 @@ handleListWorkspaces() {
 }
 
 handleListChannels() {
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -w|--workspace) WORKSPACE_ID="$2"; shift 2 ;;
+            -v|--verbose) VERBOSE=1; shift ;;
+            *) shift ;;
+        esac
+    done
+
     if [ -z "$WORKSPACE_ID" ]; then
         log "Error: Workspace ID is required to list channels"
         log "Use --workspace flag or set DEFAULT_WORKSPACE_ID"

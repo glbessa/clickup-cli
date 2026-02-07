@@ -59,7 +59,8 @@ interactiveConfigure() {
     local current_channel="$DEFAULT_CHANNEL_ID"
 
     printf "Enter your ClickUp API Token [%s]: " "$current_token"
-    read input_token
+    read -s input_token
+    echo ""
     API_TOKEN="${input_token:-$current_token}"
 
     if [ -z "$API_TOKEN" ] || [ "$API_TOKEN" = "your_clickup_api_token_here" ]; then
@@ -86,7 +87,9 @@ interactiveConfigure() {
 
     if [ -n "$WORKSPACE_ID" ]; then
         echo ""
-        handleListSpaces
+        if command -v handleListSpaces >/dev/null 2>&1; then
+            handleListSpaces
+        fi
     fi
     echo ""
     printf "Enter default Channel ID (Optional) [%s]: " "$current_channel"

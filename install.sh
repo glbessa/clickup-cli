@@ -38,16 +38,29 @@ mkdir -p "$INSTALL_BIN_DIR"
 mkdir -p "$INSTALL_LIB_DIR"
 
 # Copy files
-if [ "$PREFIX" = "/usr/local" ]; then
-    echo "Using sudo for /usr/local installation"
-    sudo cp "$SRC_SCRIPT_PATH" "$INSTALL_BIN_DIR/$SCRIPT_NAME"
-    sudo chmod +x "$INSTALL_BIN_DIR/$SCRIPT_NAME"
-    sudo cp -r "$SRC_LIB_DIR"/* "$INSTALL_LIB_DIR/"
-else
-    cp "$SRC_SCRIPT_PATH" "$INSTALL_BIN_DIR/$SCRIPT_NAME"
-    chmod +x "$INSTALL_BIN_DIR/$SCRIPT_NAME"
-    cp -r "$SRC_LIB_DIR"/* "$INSTALL_LIB_DIR/"
+if [ ! -w "$INSTALL_BIN_DIR" ]; then
+    echo "Error: Cannot write to $INSTALL_BIN_DIR"
+    echo "Please run this script with sudo or ensure you have write permissions."
+    exit 1
 fi
+
+if [ ! -w "$INSTALL_LIB_DIR" ] && [ -d "$INSTALL_LIB_DIR" ]; then
+     echo "Error: Cannot write to $INSTALL_LIB_DIR"
+     echo "Please run this script with sudo or ensure you have write permissions."
+     exit 1
+elif [ ! -d "$INSTALL_LIB_DIR" ]; then
+    # Check if we can create the directory (check parent)
+    PARENT_LIB_DIR=$(dirname "$INSTALL_LIB_DIR")
+    if [ ! -w "$PARENT_LIB_DIR" ]; then
+        echo "Error: Cannot create directory in $PARENT_LIB_DIR"
+        echo "Please run this script with sudo or ensure you have write permissions."
+        exit 1
+    fi
+fi
+
+cp "$SRC_SCRIPT_PATH" "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+chmod +x "$INSTALL_BIN_DIR/$SCRIPT_NAME"
+cp -r "$SRC_LIB_DIR"/* "$INSTALL_LIB_DIR/"
 
 echo "$SCRIPT_NAME installed to $INSTALL_BIN_DIR/$SCRIPT_NAME"
 echo "Libraries installed to $INSTALL_LIB_DIR"
